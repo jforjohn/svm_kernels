@@ -120,7 +120,7 @@ def run_svm_dataset(dataset_index, kernels):
 
     # fit the different models
     for fig_num, kernel in enumerate(kernels):
-        clf = SVC(kernel=kernel, random_state=42, gamma='auto')
+        clf = SVC(kernel=kernel, random_state=42, gamma='auto', C=42)
         clf.fit(X_train, y_train)
         y_pred = clf.predict(X_test)
         print('===============')
@@ -143,7 +143,11 @@ def run_svm_dataset(dataset_index, kernels):
                     edgecolor='k', s=20)
 
         # Circle out the test data
-        plt.scatter(X_test[:, 0], X_test[:, 1], s=80, facecolors='none',
+        plt.scatter(X_test[:, 0], X_test[:, 1], s=80, facecolors='#058901',
+                    zorder=10, alpha=0.3)
+
+        plt.scatter(clf.support_vectors_[:, 0], clf.support_vectors_[:, 1], s=100,
+                    facecolors='none',
                     zorder=10, edgecolor='w')
 
         plt.axis('tight')
@@ -159,9 +163,9 @@ def run_svm_dataset(dataset_index, kernels):
         Z = Z.reshape(XX.shape)
         plt.pcolormesh(XX, YY, Z > 0, cmap=plt.cm.coolwarm)
         plt.contour(XX, YY, Z, colors=['k', 'k', 'k'],
-                    linestyles=['--', '-', '--'], levels=[-.5, 0, .5])
+                    linestyles=['--', '-', '--'], levels=[-1, 0, 1])
 
-        plt.title(kernel + ' Hyperplane')
+        plt.title(kernel + ' kernel')
     plt.show()
 
 
