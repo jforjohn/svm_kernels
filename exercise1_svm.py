@@ -9,8 +9,8 @@ import numpy as np
 from sklearn.svm import SVC
 import matplotlib.pyplot as plt
 import random
-from sklearn.metrics import accuracy_score
-
+from sklearn.metrics import accuracy_score, confusion_matrix
+import itertools
 
 
 
@@ -19,6 +19,42 @@ if __name__ == "__main__":
     import pylab as pl
 
     rng = np.random.RandomState(0)
+
+
+    def plot_confusion_matrix(cm, classes, kernel_name, fig_num,
+                              normalize=False,
+                              cmap=plt.cm.Blues):
+        """
+        This function prints and plots the confusion matrix.
+        Normalization can be applied by setting `normalize=True`.
+        """
+        title = kernel_name + ' Confusion matrix'
+        if normalize:
+            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+            print("Normalized confusion matrix")
+        else:
+            print('Confusion matrix, without normalization')
+
+        print(cm)
+        plt.figure(fig_num + 10)
+        plt.imshow(cm, interpolation='nearest', cmap=cmap)
+        plt.title(title)
+        plt.colorbar()
+        tick_marks = np.arange(len(classes))
+        plt.xticks(tick_marks, classes, rotation=45)
+        plt.yticks(tick_marks, classes)
+
+        fmt = '.2f' if normalize else 'd'
+        thresh = cm.max() / 2.
+        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+            plt.text(j, i, format(cm[i, j], fmt),
+                     horizontalalignment="center",
+                     color="white" if cm[i, j] > thresh else "black")
+
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label')
+        plt.tight_layout()
+
 
     def generate_data_set1():
         # generate training data in the 2-d case
@@ -74,9 +110,9 @@ if __name__ == "__main__":
         y_test = np.hstack((y1_test, y2_test))
         return X_test, y_test
 
-    def run_svm_dataset1():
+    def run_svm_dataset(dataset_index):
         random.seed(42)
-        X1, y1, X2, y2 = generate_data_set1()
+        X1, y1, X2, y2 = globals().get('generate_data_set' + str(dataset_index))()
         X_train, y_train = split_train(X1, y1, X2, y2)
         X_test, y_test = split_test(X1, y1, X2, y2)
 
@@ -90,9 +126,15 @@ if __name__ == "__main__":
             clf = SVC(kernel=kernel, random_state=42, gamma='auto')
             clf.fit(X_train, y_train)
             y_pred = clf.predict(X_test)
-            print('score', kernel, clf.score(X_test, y_test))
-            print('accuracy', kernel, accuracy_score(y_test, y_pred))
-            print('correct cases', kernel, accuracy_score(y_test, y_pred, normalize=False))
+            print('===============')
+            print(kernel)
+            print('score:', clf.score(X_test, y_test))
+            print('accuracy:', accuracy_score(y_test, y_pred))
+            print('correct cases:', accuracy_score(y_test, y_pred, normalize=False))
+            plot_confusion_matrix(confusion_matrix(y_test, y_pred), classes=set(y_test),
+                                  kernel_name=kernel, fig_num=fig_num)
+            print()
+
 
             plt.figure(fig_num)
             plt.clf()
@@ -101,7 +143,7 @@ if __name__ == "__main__":
 
             # Circle out the test data
             plt.scatter(X_test[:, 0], X_test[:, 1], s=80, facecolors='none',
-                        zorder=10, edgecolor='k')
+                        zorder=10, edgecolor='w')
 
             plt.axis('tight')
             x_min = X[:, 0].min() - 1
@@ -118,7 +160,7 @@ if __name__ == "__main__":
             plt.contour(XX, YY, Z, colors=['k', 'k', 'k'],
                         linestyles=['--', '-', '--'], levels=[-.5, 0, .5])
 
-            plt.title(kernel)
+            plt.title(kernel + ' Hyperplane')
         plt.show()
 
 
@@ -130,7 +172,7 @@ if __name__ == "__main__":
         # print on the console the number of correct predictions and the total of predictions
         #
 
-
+    '''
     def run_svm_dataset2():
         X1, y1, X2, y2 = generate_data_set2()
         X_train, y_train = split_train(X1, y1, X2, y2)
@@ -244,7 +286,7 @@ if __name__ == "__main__":
         # plot the graph with the support_vectors_
         # print on the console the number of correct predictions and the total of predictions
         ####
-
+    '''
 
 
 #############################################################
@@ -257,9 +299,9 @@ if __name__ == "__main__":
     rng = np.random.RandomState(0)
 
 
-    run_svm_dataset1()   # data distribution 1
-    #run_svm_dataset2()   # data distribution 2
-    #run_svm_dataset3()   # data distribution 3
+    run_svm_dataset(1)   # data distribution 1
+    #run_svm_dataset(2)   # data distribution 2
+    #run_svm_dataset(3)   # data distribution 3
 
 #############################################################
 #############################################################
