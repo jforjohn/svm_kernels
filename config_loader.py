@@ -9,7 +9,8 @@ def load(config_file):
     requiredConfig = {
         'svm': ['dataset',
                 'svm_exercise',
-                'kernels'
+                'kernels',
+                'tuning'
         	   ],
     }
     try:
