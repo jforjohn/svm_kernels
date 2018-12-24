@@ -8,7 +8,7 @@ import sys
 from os import walk
 from scipy.stats import friedmanchisquare
 import seaborn as sns
-from exercise1_svm import mainExercise1
+from exercise1_svm import mainExercise1, plot_confusion_matrix
 from sklearn.svm import SVC
 
 import numpy as np
@@ -29,8 +29,13 @@ def getProcessedData(path, dataset, filename, raw=False):
     preprocess.fit(Xtrain)
     df = preprocess.new_df
     labels = preprocess.labels_
-    labels_fac = preprocess.labels_fac
-    return df, labels, labels_fac
+    #labels_fac = preprocess.labels_fac
+    return df, labels #, labels_fac
+
+def labelFactorization(ytrain_lbl, ytest_lbl):
+    labels = np.hstack((ytrain_lbl, ytest_lbl))
+    labels_fac = pd.factorize(labels)[0]
+    return labels_fac[:ytrain_lbl.size], labels_fac[ytrain_lbl.size:]
 
 ##
 if __name__ == '__main__':
@@ -63,18 +68,22 @@ if __name__ == '__main__':
     elif svm_exercise == '2':
         path = 'datasetsCBR/' + dataset + '/'  # + dataset + '.fold.00000'
         filenames = [filename for _, _, filename in walk(path)][0]
-        df_results = pd.DataFrame()
 
-        ##
-        for filename in filenames:
-            #accuracy = 0
+        df_results = pd.DataFrame()
+        accum_acc_lst = []
+        accum_time_lst = []
+        row_names = []
+        for kernel in kernels:
+            acc_lst = []
+            time_lst = []
             start = time()
             for f_ind in range(0,len(filenames), 2):
                 test_file = filenames[f_ind]
                 train_file = filenames[f_ind+1]
                 # raw = False
-                df_train, ytrain, ytrain_fac = getProcessedData(path, dataset, train_file)
-                df_test, ytest, _ = getProcessedData(path, dataset, test_file)
+                df_train, ytrain_lbl = getProcessedData(path, dataset, train_file)
+                df_test, ytest_lbl = getProcessedData(path, dataset, test_file)
+                ytrain, ytest = labelFactorization(ytrain_lbl, ytest_lbl)
 
                 if df_train.shape[1] != df_test.shape[1]:
                     missing_cols = set(df_test.columns) - set(df_train.columns)
@@ -86,32 +95,26 @@ if __name__ == '__main__':
                         print(df_train.shape, df_test.shape)
                         df_test[col] = np.zeros([df_test.shape[0],1])
 
-                clf = MyIBL(n_neighbors=n_neighbor,
-                            ibl_algo=ib,
-                            voting=voting,
-                            distance=distance
-                            )
-                print(df_train.shape, df_test.shape)
+                clf = SVC(kernel=kernel,
+                          random_state=42,
+                          gamma='auto',
+                          C=42)
                 clf.fit(df_train, ytrain)
-                train_obj.append(clf)
-                pred = clf.predict(df_test, ytest)
 
-                size_fold = df_test.shape[0]
-                acc = clf.classificationTest['correct'] / size_fold
+                acc = clf.score(df_test, ytest)
                 acc_lst.append(acc)
                 duration = time() - start
                 time_lst.append(duration)
-                missclassification_rate += clf.classificationTest['incorrect'] /size_fold
 
-            row_name = 'k=' + str(n_neighbor) + '/' + distance + '/' + voting
+            row_name = 'kernel:%s/C:%.2f/gamma:%.2f' %(kernel, clf.C, clf._gamma)
             row_names.append(row_name)
             accum_acc_lst.append(acc_lst)
             accum_time_lst.append(time_lst)
             duration_time = sum(time_lst)
             accuracy = sum(acc_lst)
-            df = pd.DataFrame([[duration_time/10, accuracy/10, missclassification_rate/10, cd_len/10]],
+            df = pd.DataFrame([[duration_time/10, accuracy/10]],
                               index=[row_name],
-                              columns=['Time', 'Accuracy', 'MisclassRate', 'CDpercentage'])
+                              columns=['Time', 'Accuracy'])
             df_results = pd.concat([df_results, df], axis=0)
             print(df_results)
 
@@ -120,17 +123,10 @@ if __name__ == '__main__':
         print('Accuracy:')
         print(df_acc)
         print()
-        if run == 'all':
-            stat, p = friedmanchisquare(*accum_acc_lst)
-            print(stat, p)
-        print()
+
 
         print('Time:')
         print(df_time)
-        print()
-        if run == 'all':
-            stat, p = friedmanchisquare(*accum_time_lst)
-            print(stat, p)
         print()
 
         print('Results:')
@@ -142,26 +138,38 @@ if __name__ == '__main__':
         print()
         print('Row names')
         print(row_names)
-        '''
-        res = sp.posthoc_nemenyi_friedman(np.array(accum_acc_lst).T)
-        res = res.rename(columns={i:rows[i] for i in res.columns}, index={i:rows[i] for i in res.columns})
-        cmap = ['1', '#fb6a4a',  '#08306b',  '#4292c6', '#c6dbef']
-        heatmap_args = {'cmap': cmap, 'linewidths': 0.25, 'linecolor': '0.5', 'clip_on': False, 'square': True, 'cbar_ax_bbox': [0.80, 0.35, 0.04, 0.3]}
-        sp.sign_plot(res, **heatmap_args)
-        plt.title('Nemenyi p-values matrix')
-        
-        for acc, row in zip(accum_acc_lst,rows):
-        # Subset to the airline
-        
-        # Draw the density plot
-        sns.distplot(acc, hist = False, kde = True,
-                     kde_kws = {'linewidth': 3},
-                     label = row)
-        
-        # Plot formatting
-        plt.legend(prop={'size': 16}, title = 'Model')
-        plt.title('Density Plot with Multiple Models')
-        plt.xlabel('Accuracy')
-        plt.ylabel('Density')
-        '''
+
+        if len(accum_acc_lst) > 2:
+            print("Friedman test on 'accuracy'")
+            stat, p = friedmanchisquare(*accum_acc_lst)
+            print(stat, p)
+            print("Friedman test on 'time'")
+            stat, p = friedmanchisquare(*accum_time_lst)
+            print(stat, p)
+
+            res = sp.posthoc_nemenyi_friedman(np.array(accum_acc_lst).T)
+            res = res.rename(columns={i:row_names[i] for i in res.columns},
+                             index={i:row_names[i] for i in res.columns})
+            plt.figure(1)
+            cmap = ['1', '#fb6a4a',  '#08306b',  '#4292c6', '#c6dbef']
+            heatmap_args = {'cmap': cmap, 'linewidths': 0.25, 'linecolor': '0.5', 'clip_on': False, 'square': True, 'cbar_ax_bbox': [0.80, 0.35, 0.04, 0.3]}
+            sp.sign_plot(res, **heatmap_args)
+            plt.title(dataset + ': '+ 'Nemenyi p-values matrix')
+
+            plt.figure(2)
+            for acc, row in zip(accum_acc_lst, row_names):
+                # Subset to the airline
+
+                # Draw the density plot
+                sns.distplot(acc, hist = False, kde = True,
+                            kde_kws = {'linewidth': 3},
+                            label = row)
+
+            # Plot formatting
+            plt.legend(prop={'size': 16}, title = 'Model')
+            plt.title(dataset + ': '+ 'Density Plot with Multiple Models')
+            plt.xlabel('Accuracy')
+            plt.ylabel('Density')
+
+            plt.show()
 
